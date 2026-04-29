@@ -104,9 +104,40 @@ class MAEDecoder(nn.Module):
         pred = self.pred(full_tokens)
         return pred
 
+def patchify(images, patch_size=16):
+    B, C, H, W = images.shape
+    assert H % patch_size == 0 and W % patch_size == 0
+    h = H // patch_size
+    w = W // patch_size
+    num_patches = h * w
+    patches = images.reshape(B, C, h, patch_size, w, patch_size)
+    patches = patches.permute(0, 2, 4, 1, 3, 5)
+    patches = patches.reshape(B, num_patches, -1)
+    return patches
+
+def unpatchify(patches, patch_size=16, img_size=224):
+    B, N, D = patches.shape
+    h = w = img_size // patch_size
+    C = 3
+    patches = patches.reshape(B, h, w, C, patch_size, patch_size)
+    patches = patches.permute(0, 3, 1, 4, 2, 5)
+    images = patches.reshape(B, C, img_size, img_size)
+    return images
+
+def random_masking(B, num_patches, mask_ratio=0.75, device='cpu'):
+    num_visible = int(num_patches * (1 - mask_ratio))
+    noise = torch.rand(B, num_patches, device=device)
+    ids_shuffle = torch.argsort(noise, dim=1)
+    ids_restore = torch.argsort(ids_shuffle, dim=1)
+    ids_keep = ids_shuffle[:, :num_visible]
+    mask = torch.ones(B, num_patches, device=device)
+    mask.scatter_(1, ids_keep, 0)
+    return mask, ids_keep, ids_restore
+
 class MaskedAutoencoder(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_channels=3, encoder_embed_dim=768, encoder_depth=12, encoder_num_heads=12, decoder_embed_dim=384, decoder_depth=12, decoder_num_heads=6, mlp_ratio=4.0, mask_ratio=0.75):
         super().__init__()
+        self.img_size = img_size
         self.patch_size = patch_size
         self.mask_ratio = mask_ratio
         self.num_patches = (img_size // patch_size) ** 2
@@ -114,5 +145,30 @@ class MaskedAutoencoder(nn.Module):
         self.decoder = MAEDecoder(num_patches=self.num_patches, encoder_embed_dim=encoder_embed_dim, decoder_embed_dim=decoder_embed_dim, decoder_depth=decoder_depth, decoder_num_heads=decoder_num_heads, mlp_ratio=mlp_ratio, patch_size=patch_size, in_channels=in_channels)
 
     def forward(self, images):
-        # Implementation of forward pass...
-        pass
+        B = images.shape[0]
+        patches = patchify(images, self.patch_size)
+        mask, ids_keep, ids_restore = random_masking(
+            B, self.num_patches, self.mask_ratio, device=images.device
+        )
+        encoder_out = self.encoder(patches, ids_keep)
+        pred = self.decoder(encoder_out, ids_restore)
+        
+        # Loss = MSE on masked patches only
+        loss = (pred - patches) ** 2
+        loss = loss.mean(dim=-1)
+        loss = (loss * mask).sum() / mask.sum()
+        return loss, pred, mask
+
+    @torch.no_grad()
+    def get_reconstruction(self, images):
+        B = images.shape[0]
+        patches = patchify(images, self.patch_size)
+        mask, ids_keep, ids_restore = random_masking(
+            B, self.num_patches, self.mask_ratio, device=images.device
+        )
+        encoder_out = self.encoder(patches, ids_keep)
+        pred = self.decoder(encoder_out, ids_restore)
+        masked_patches = patches * (1 - mask.unsqueeze(-1))
+        masked_img = unpatchify(masked_patches, self.patch_size, img_size=self.img_size)
+        recon_img = unpatchify(pred, self.patch_size, img_size=self.img_size)
+        return masked_img, recon_img, mask
