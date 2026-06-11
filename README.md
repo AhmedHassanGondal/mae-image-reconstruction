@@ -42,10 +42,12 @@ MAE-Image-Reconstruction/
 │   └── Assignment#2.ipynb
 ├── src/                # Modular source code
 │   └── model.py        # Core MAE architecture (Encoder, Decoder, MAE)
-├── models/             # Saved model checkpoints (.pth)
-├── results/            # Qualitative reconstruction plots
 ├── requirements.txt    # Python dependencies
 └── README.md           # Project overview and documentation
+
+# Created at runtime when you train / evaluate:
+#   models/   — saved model checkpoints (.pth)
+#   results/  — qualitative reconstruction plots
 ```
 
 ---
