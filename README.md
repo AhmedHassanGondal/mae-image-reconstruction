@@ -37,7 +37,7 @@ graph LR
 ## 📂 Project Structure
 
 ```text
-MAE-Image-Reconstruction/
+mae-image-reconstruction/
 ├── notebooks/          # Jupyter notebooks with experiments and evaluation
 │   └── Assignment#2.ipynb
 ├── src/                # Modular source code
@@ -56,8 +56,8 @@ MAE-Image-Reconstruction/
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/AhmedHassanGondal/MAE-Image-Reconstruction.git
-   cd MAE-Image-Reconstruction
+   git clone https://github.com/AhmedHassanGondal/mae-image-reconstruction.git
+   cd mae-image-reconstruction
    ```
 
 2. **Install dependencies**:
